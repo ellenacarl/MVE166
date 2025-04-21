@@ -1,0 +1,22 @@
+# Sets
+BLEND_I = 1:3
+CROP_J = 1:3
+
+# Labels
+BLEND = ["B5" "B30" "B100"]
+CROP = ["Soy" "Sunflower" "Cotton"]
+
+# Parameters
+cost = [1.43*0.8 1.29*0.95 1.16]
+prop = [0.05 0.3 1]
+
+yield = [2.6 1.4 0.9]
+oil = [0.178 0.216 0.433]
+water = [5 4.2 1]
+
+cp = 1
+cm = 1.5
+A = 1600
+W = 5000
+V = 280000
+P = 150000

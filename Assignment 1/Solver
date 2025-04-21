@@ -1,0 +1,37 @@
+using JuMP, Gurobi
+import Ipopt
+
+include("data_vt25.jl")
+
+model = Model(Gurobi.Optimizer)
+
+# Define the decision variables
+@variable(model, vol[BLEND_I] >= 0)
+@variable(model, ha[CROP_J] >= 0)
+
+# Define the objective function
+@objective(model, Max, sum(vol[i]*(cost[i] - (1-prop[i])*cp - (0.2/0.9)*prop[i]*cm) for i in BLEND_I))
+
+# Define the constraints
+@constraint(model, sum(vol[i] for i in BLEND_I) == V)  # Produce enough fuel
+@constraint(model, sum((1-prop[i])*vol[i] for i in BLEND_I) <= P ) # Max petrol volume
+@constraint(model, 1000 * sum(yield[j] * oil[j] * ha[j] for j in CROP_J) == (1 / 0.9) * sum(prop[i] * vol[i] for i in BLEND_I))  # Oil extraction
+@constraint(model, sum(ha[j] for j in CROP_J) <= A)  # Land area constraint
+@constraint(model, sum(water[j] * ha[j] for j in CROP_J) <= W)  # Water usage constraint
+
+optimize!(model)
+
+println("")
+println("Termination status: ", JuMP.termination_status(model))
+println("Optimal objective function value (Primal): ", JuMP.objective_value(model))
+println("Optimal point vol: ", JuMP.value.(vol))
+println("Optimal point ha: ", JuMP.value.(ha))
+
+
+
+
+
+
+
+
+

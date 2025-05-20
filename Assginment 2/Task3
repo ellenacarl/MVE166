@@ -1,0 +1,115 @@
+using JuMP
+using Gurobi 
+using Plots
+
+#Data
+const Components = 1:10
+const U = [42, 18, 90, 94, 49, 49, 34, 90, 37, 11]  
+
+function generate_data(T::Int)
+    d = ones(1, T) * 20
+    c = [34, 25, 14, 21, 16, 3, 10, 5, 7, 10] .* ones(10, T)
+    I = [(s, t) for s in 0:T for t in (s+1):(T+1)]
+    return T, c, d, I 
+end
+
+
+# Model 
+function build_model_interval(T, c, d, U, I; relax_x::Bool = false, relax_z::Bool = false)
+    m = Model(Gurobi.Optimizer)
+
+    if relax_x
+        @variable(m, x[i in Components, (s, t) in I] >= 0)
+    else
+        @variable(m, x[i in Components, (s, t) in I], Bin)
+    end
+
+    if relax_z
+        @variable(m, z[1:T] <= 1)
+    else
+        @variable(m, z[1:T] <= 1, Bin)
+    end
+
+    #cost for exceeding life time
+    M = T * (maximum(d) + length(U) * maximum(c)) + 1
+
+
+    function interval_cost(i, s, t)
+        if t - s <= U[i]
+            return c[i, min(t, T)]
+        else
+            return M
+        end
+    end
+
+    @expression(m, interval_costs[i in Components, (s, t) in I],
+        interval_cost(i, s, t) * x[i, (s, t)]
+    )
+
+
+    @objective(m, Min,
+        sum(d[t] * z[t] for t in 1:T) +
+        sum(interval_costs[i, (s, t)] for i in Components, (s, t) in I)
+    )
+
+
+    @constraint(m, [i in Components, t in 1:T],
+        sum(x[i, (s, t)] for s in 0:(t-1) if (s, t) in I) <= z[t]
+    )
+
+    @constraint(m, [i in Components, t in 1:T],
+        sum(x[i, (t, r)] for r in (t+1):(T+1) if (t, r) in I) ==
+        sum(x[i, (s, t)] for s in 0:(t-1) if (s, t) in I)
+    )
+
+    @constraint(m, [i in Components],
+        sum(x[i, (0, t)] for t in 1:(T+1) if (0, t) in I) == 1
+    )
+
+    return m, x, z
+end
+
+
+
+# Ts = 50:10:200
+# calc_time = Float64[]
+
+# for Time in Ts
+#     println("=== Opt for time T = $Time begun ===")
+#     T, c, d, I = generate_data(Time)
+#     m, x, z = build_model_interval(T, c, d, U, I;  relax_x = true)
+#     set_optimizer(m, Gurobi.Optimizer)
+#     optimize!(m)
+#     push!(calc_time, solve_time(m))
+# end
+
+
+# plt = plot(Ts, calc_time, yaxis=:log, xlabel="Time horizon T [s]", ylabel="Computational time [s]",
+#      title="Computational time vs Time horizon (MILP-problem)", legend=false)
+
+# display(plt)
+# readline() 
+
+
+
+Ts = 50:10:700
+calc_time = Float64[]
+
+for Time in Ts
+    println("=== Opt for time T = $Time begun ===")
+    T, c, d, I = generate_data(Time)
+    m, x, z = build_model_interval(T, c, d, U, I;  relax_x = true, relax_z = true)
+    set_optimizer(m, Gurobi.Optimizer)
+    optimize!(m)
+    push!(calc_time, solve_time(m))
+end
+
+
+plt = plot(Ts, calc_time, xlabel="Time horizon T [s]", ylabel="Computational time [s]",
+     title="Computational time vs Time horizon (LP-problem)", legend=false)
+
+display(plt)
+readline() 
+
+
+
